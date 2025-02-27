@@ -1,0 +1,97 @@
+---
+# tasks/certificates.yml - Certificate issuance and renewal
+
+# Define the certbot executable path once at the top
+- name: Set certbot executable path
+  ansible.builtin.set_fact:
+    certbot_exec: "{{ certbot_venv_dir }}/bin/certbot"
+
+- name: Check if certificates already exist
+  ansible.builtin.stat:
+    path: "{{ certbot_config_dir }}/live/{{ item.domains[0] }}/cert.pem"
+  register: cert_files
+  with_items: "{{ certbot_certs }}"
+  ignore_errors: true
+  check_mode: false
+
+- name: Verify certificate expiration for existing certificates
+  ansible.builtin.command: >
+    {{ certbot_exec }} certificates --cert-name {{ item.item.domains[0] }}
+  register: cert_details
+  with_items: "{{ cert_files.results }}"
+  when: item.stat.exists
+  changed_when: false
+  ignore_errors: true
+  check_mode: false
+
+- name: Issue certificates with OVH DNS challenge
+  ansible.builtin.command: >
+    {{ certbot_exec }} certonly --non-interactive 
+    --authenticator dns-ovh 
+    --dns-ovh-credentials {{ certbot_ovh_credentials_dir }}/ovh.ini
+    --dns-ovh-propagation-seconds {{ certbot_ovh_propagation_seconds | default(60) }}
+    --agree-tos
+    --email {{ item.0.email | default(certbot_admin_email) }}
+    --domains {{ item.0.domains | join(',') }}
+    {{ '--cert-name ' + item.0.cert_name if item.0.cert_name is defined else '' }}
+    {{ '--staging' if certbot_staging | bool else '' }}
+    {{ certbot_additional_args | default('') }}
+  with_together:
+    - "{{ certbot_certs }}"
+    - "{{ cert_files.results }}"
+  when: >
+    (certbot_dns_provider == 'ovh' and (not item.1.stat.exists or 
+    certbot_force_renew | bool or 
+    "The following certs are not due for renewal yet" not in cert_details.results[ansible_loop.index0].stdout|default('')))
+  register: certbot_issuance
+  become: true
+  notify: Restart services after cert renewal
+
+- name: Run certificate renewal (forced)
+  ansible.builtin.command: >
+    {{ certbot_exec }} renew --force-renewal
+  when: certbot_force_renew | bool
+  become: true
+  notify: Restart services after cert renewal
+  changed_when: true
+
+- name: Setup Certbot renewal cron job
+  ansible.builtin.cron:
+    name: Certbot automatic renewal
+    job: "{{ certbot_exec }} renew {{ certbot_renew_args | default('') }}"
+    minute: "{{ certbot_cron_minute | default('30') }}"
+    hour: "{{ certbot_cron_hour | default('3') }}"
+    weekday: "{{ certbot_cron_weekday | default('1') }}"
+    user: root
+  when: certbot_use_cron | bool
+  become: true
+
+- name: Create systemd timer unit for Certbot renewal (if using systemd)
+  ansible.builtin.template:
+    src: certbot-renew.timer.j2
+    dest: /etc/systemd/system/certbot-renew.timer
+    owner: root
+    group: root
+    mode: '0644'
+  when: not certbot_use_cron | bool
+  become: true
+  
+- name: Create systemd service unit for Certbot renewal (if using systemd)
+  ansible.builtin.template:
+    src: certbot-renew.service.j2
+    dest: /etc/systemd/system/certbot-renew.service
+    owner: root
+    group: root
+    mode: '0644'
+  when: not certbot_use_cron | bool
+  become: true
+
+- name: Enable and start Certbot renewal timer (if using systemd)
+  ansible.builtin.systemd:
+    name: certbot-renew.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not certbot_use_cron | bool
+  become: true
+  ignore_errors: true

@@ -1,0 +1,64 @@
+---
+# tasks/install.yml - Install Certbot and dependencies
+
+- name: Ensure required packages are installed
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  with_items: "{{ certbot_required_packages }}"
+  become: true
+
+# Install packages needed for virtualenv
+- name: Install python3-venv
+  ansible.builtin.apt:
+    name: 
+      - python3-venv
+      - python3-full
+    state: present
+  become: true
+
+# Create a virtual environment for Certbot
+- name: Create virtualenv directory for Certbot
+  ansible.builtin.file:
+    path: "{{ certbot_venv_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Create Python virtualenv for Certbot
+  ansible.builtin.command: python3 -m venv {{ certbot_venv_dir }}
+  args:
+    creates: "{{ certbot_venv_dir }}/bin/pip"
+  become: true
+
+# Install certbot and plugins in the virtualenv
+- name: Install Certbot and plugins in virtualenv
+  ansible.builtin.pip:
+    name:
+      - certbot
+      # - certbot-dns-ovh
+    state: present
+    virtualenv: "{{ certbot_venv_dir }}"
+  become: true
+  register: certbot_pip_install
+
+# Create symlink for certbot command
+- name: Create symlink for certbot command
+  ansible.builtin.file:
+    src: "{{ certbot_venv_dir }}/bin/certbot"
+    dest: /usr/local/bin/certbot
+    state: link
+  become: true
+
+- name: Verify Certbot installation
+  ansible.builtin.command: certbot --version
+  register: certbot_version
+  changed_when: false
+  failed_when: certbot_version.rc != 0
+  check_mode: false
+
+- name: Display Certbot version
+  ansible.builtin.debug:
+    msg: "Certbot version: {{ certbot_version.stdout }}"

@@ -1,0 +1,36 @@
+---
+# tasks/main.yml - Main task flow control
+
+- name: Include variables based on OS family
+  ansible.builtin.include_vars: "{{ item }}"
+  with_first_found:
+    - "{{ ansible_os_family | lower }}.yml"
+    - "default.yml"
+  tags: always
+
+- name: Install Certbot and dependencies
+  ansible.builtin.import_tasks: install.yml
+  tags:
+    - certbot
+    - certbot:install
+
+- name: Configure OVH DNS plugin
+  ansible.builtin.import_tasks: ovh_plugin.yml
+  when: certbot_dns_provider == 'ovh'
+  tags:
+    - certbot
+    - certbot:configure
+    - certbot:plugin
+    - certbot:ovh
+
+- name: Configure Certbot
+  ansible.builtin.import_tasks: configure.yml
+  tags:
+    - certbot
+    - certbot:configure
+
+- name: Manage certificates
+  ansible.builtin.import_tasks: certificates.yml
+  tags:
+    - certbot
+    - certbot:certificates

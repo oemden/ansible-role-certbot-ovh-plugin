@@ -1,0 +1,17 @@
+---
+# handlers/main.yml - Handlers for service restarts
+
+- name: Restart Certbot renewal timer
+  ansible.builtin.systemd:
+    name: certbot.timer
+    state: restarted
+  become: true
+  ignore_errors: true
+
+- name: Restart services after cert renewal
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: restarted
+  with_items: "{{ certbot_services_to_restart | default([]) }}"
+  become: true
+  ignore_errors: true

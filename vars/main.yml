@@ -1,0 +1,5 @@
+---
+# vars/main.yml - Role-specific variables
+
+# This file can be empty by default and used for OS-specific variables
+# that might be included from OS-specific files in the vars directory

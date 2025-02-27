@@ -1,0 +1,64 @@
+---
+# defaults/main.yml - Default variables for Certbot role
+
+# Installation settings
+certbot_use_pip: true
+certbot_required_packages:
+  - python3
+  - python3-venv
+  - ca-certificates
+  - openssl
+
+# Virtual environment settings
+certbot_venv_dir: "/opt/certbot-venv"
+
+# Certbot DNS plugin settings
+certbot_dns_provider: "ovh"  # Options: ovh, etc.
+certbot_dns_plugin_packages:
+  - certbot-dns-ovh
+certbot_dns_plugin_packages_alt:
+  - python3-certbot-dns-ovh
+
+# OVH specific settings
+certbot_ovh_credentials_dir: "/etc/letsencrypt/ovh"
+certbot_ovh_endpoint: "ovh-eu"  # Options: ovh-eu, ovh-ca, ovh-us, etc.
+certbot_ovh_application_key: ""
+certbot_ovh_application_secret: ""
+certbot_ovh_consumer_key: ""
+certbot_ovh_propagation_seconds: 60
+
+# Certbot directory settings
+certbot_config_dir: "/etc/letsencrypt"
+certbot_work_dir: "/var/lib/letsencrypt"
+certbot_logs_dir: "/var/log/letsencrypt"
+
+# Certificate settings
+certbot_admin_email: "admin@example.com"
+certbot_staging: false  # Set to true for testing
+certbot_force_renew: false
+certbot_additional_args: ""
+certbot_renew_args: "--quiet --no-self-upgrade"
+
+# Certificate renewal settings
+certbot_use_cron: false  # Set to true to use cron instead of systemd timer
+certbot_cron_minute: "30"
+certbot_cron_hour: "3"
+certbot_cron_weekday: "1"  # Monday
+
+# Certificates to obtain
+certbot_certs: []
+# Example certificate configuration:
+# certbot_certs:
+#   - domains:
+#       - example.com
+#       - www.example.com
+#     email: admin@example.com  # Optional, defaults to certbot_admin_email
+#     cert_name: example-com    # Optional
+
+# Post-renewal hooks
+certbot_post_hooks: []
+# Example post hook:
+# certbot_post_hooks:
+#   - name: reload-nginx.sh
+#     services:
+#       - nginx
