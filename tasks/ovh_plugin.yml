@@ -1,0 +1,40 @@
+---
+# tasks/ovh_plugin.yml - OVH DNS plugin setup
+- name: Install OVH DNS plugin for Certbot in virtualenv
+  ansible.builtin.pip:
+    name: certbot-dns-ovh
+    state: present
+    # executable: pip3
+    virtualenv: "{{ certbot_venv_dir }}"
+  become: true
+  when: certbot_dns_provider == 'ovh' and certbot_use_pip | bool
+  register: ovh_plugin_install
+  
+- name: Install OVH DNS plugin via package manager (alternative)
+  ansible.builtin.package:
+    name: python3-certbot-dns-ovh
+    state: present
+  become: true
+  when: certbot_dns_provider == 'ovh' and not certbot_use_pip | bool
+  register: ovh_plugin_pkg_install
+
+- name: Create credentials directory with restricted permissions
+  ansible.builtin.file:
+    path: "{{ certbot_ovh_credentials_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  become: true
+  when: certbot_dns_provider == 'ovh'
+
+- name: Template OVH credentials file
+  ansible.builtin.template:
+    src: ovh.ini.j2
+    dest: "{{ certbot_ovh_credentials_dir }}/ovh.ini"
+    owner: root
+    group: root
+    mode: '0600'
+  become: true
+  when: certbot_dns_provider == 'ovh'
+  no_log: true  # Prevents logging sensitive information

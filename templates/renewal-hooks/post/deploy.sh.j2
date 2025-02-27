@@ -1,0 +1,17 @@
+#!/bin/bash
+# Certbot post-renewal hook
+
+# This script is executed after certificate renewal
+
+# List of services to restart
+SERVICES=({% for service in item.services %}"{{ service }}" {% endfor %})
+
+echo "Certificate renewal completed, restarting services..."
+
+# Restart each service
+for service in "${SERVICES[@]}"; do
+  echo "Restarting $service..."
+  systemctl restart "$service" || echo "Failed to restart $service"
+done
+
+exit 0
