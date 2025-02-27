@@ -38,6 +38,9 @@ certbot_staging: false  # Set to true for testing
 certbot_force_renew: false
 certbot_additional_args: ""
 certbot_renew_args: "--quiet --no-self-upgrade"
+# DNS Management Settings
+certbot_manage_dns: false  # Set to true to enable DNS management
+certbot_create_www_alias: false  # Create www CNAME record pointing to the main domain
 
 # Certificate renewal settings
 certbot_use_cron: false  # Set to true to use cron instead of systemd timer
@@ -54,6 +57,10 @@ certbot_certs: []
 #       - www.example.com
 #     email: admin@example.com  # Optional, defaults to certbot_admin_email
 #     cert_name: example-com    # Optional
+#     base_domain: example.com  # Optional, will be extracted from first domain if not provided
+#     subdomain: ""  # Optional, for subdomain.example.com
+#     dns_managed: true  # Optional, set to false to skip DNS management for specific cert
+#     create_www: false  # Optional, create www CNAME
 
 # Post-renewal hooks
 certbot_post_hooks: []

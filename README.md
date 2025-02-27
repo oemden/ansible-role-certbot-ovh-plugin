@@ -137,12 +137,25 @@ certbot_post_hooks:
     certbot_ovh_application_key: "your_app_key"
     certbot_ovh_application_secret: "your_app_secret"
     certbot_ovh_consumer_key: "your_consumer_key"
+    
+    # Enable DNS management (optional)
+    certbot_manage_dns: true
+    
     certbot_certs:
       - domains:
           - example.com
           - www.example.com
           - "*.example.com"
         cert_name: example-com
+        dns_managed: true  # Enable DNS management for this cert
+        create_www: true   # Create a www CNAME record
+      
+      - domains:
+          - api.example.com
+        cert_name: api-example-com
+        dns_managed: true  # Manage DNS for this subdomain
+        # No create_www, so defaults to false
+    
     certbot_post_hooks:
       - name: reload-services.sh
         services:
@@ -151,6 +164,68 @@ certbot_post_hooks:
   roles:
     - certbot
 ```
+</details>
+
+## DNS Record Management
+
+<details>
+<summary><b>Click to view DNS Management Configuration</b></summary>
+
+This role can automatically manage DNS records for your certificates when used with OVH DNS. This makes it easy to set up new subdomains without manual DNS configuration.
+
+### Prerequisites
+
+1. Install the required Ansible collection:
+   ```bash
+   ansible-galaxy collection install ansible714.ovh
+   ```
+
+2. Enable DNS management in your playbook:
+   ```yaml
+   certbot_manage_dns: true
+   ```
+
+### Configuration Options
+
+Add these variables to your defaults/main.yml file:
+
+```yaml
+# DNS Management Settings
+certbot_manage_dns: false  # Set to true to enable DNS management
+certbot_create_www_alias: false  # Set to false by default to avoid unexpected CNAME records
+```
+
+### Using DNS Management
+
+In your playbook, you can control DNS record creation per certificate:
+
+```yaml
+certbot_certs:
+  - domains:
+      - example.com
+      - www.example.com
+    cert_name: example-com
+    dns_managed: true  # Enable DNS management for this certificate
+    create_www: true   # Create a www CNAME record
+  
+  - domains:
+      - api.example.com
+    cert_name: api-example-com
+    dns_managed: true  # Manage DNS for this subdomain
+    # No create_www, so defaults to false
+```
+
+### How It Works
+
+When enabled, the role will:
+1. Install the Python OVH module in the Certbot virtualenv
+2. Use the OVH API to create A records for your domains pointing to your server's IP
+3. Optionally create CNAME records for www subdomains
+4. Refresh the DNS zone to apply changes
+5. Then proceed with certificate issuance as normal
+
+This approach allows for fully automated domain configuration and certificate issuance in a single playbook run.
+
 </details>
 
 ## OVH API Setup
@@ -253,6 +328,23 @@ This file will be used by the Certbot DNS plugin to make the necessary API calls
 This role installs Certbot and the OVH DNS plugin in a Python virtual environment to avoid conflicts with system Python packages. This approach works well with modern Debian-based systems that implement PEP 668 (externally-managed-environment).
 
 The virtual environment is created at the location specified by `certbot_venv_dir` (default: `/opt/certbot-venv`), and all Certbot commands use this environment.
+
+### Python Dependencies
+
+The role manages the following Python dependencies in the virtualenv:
+- certbot (core functionality)
+- certbot-dns-ovh (OVH DNS plugin)
+- ovh (Python OVH API client for DNS management)
+
+### Working with Modern Debian Systems
+
+Modern Debian-based systems (Ubuntu 22.04+, Debian 12+) use externally managed environments as per PEP 668. This role handles these restrictions by:
+
+1. Installing all Python dependencies in a dedicated virtualenv
+2. Using the virtualenv for all Certbot operations
+3. Using a custom Python script for DNS management that runs within the virtualenv
+
+This approach avoids conflicts with system Python packages while still providing all required functionality.
 
 ## License
 

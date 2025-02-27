@@ -14,6 +14,21 @@
     - certbot
     - certbot:install
 
+- name: Configure Certbot
+  ansible.builtin.import_tasks: configure.yml
+  tags:
+    - certbot
+    - certbot:configure
+
+# Add this new task to manage DNS records
+- name: Manage OVH DNS records
+  ansible.builtin.import_tasks: dns_records.yml
+  when: certbot_manage_dns | bool
+  tags:
+    - certbot
+    - certbot:dns
+    - certbot:configure
+
 - name: Configure OVH DNS plugin
   ansible.builtin.import_tasks: ovh_plugin.yml
   when: certbot_dns_provider == 'ovh'
@@ -22,12 +37,6 @@
     - certbot:configure
     - certbot:plugin
     - certbot:ovh
-
-- name: Configure Certbot
-  ansible.builtin.import_tasks: configure.yml
-  tags:
-    - certbot
-    - certbot:configure
 
 - name: Manage certificates
   ansible.builtin.import_tasks: certificates.yml
