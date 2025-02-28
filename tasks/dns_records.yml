@@ -1,0 +1,81 @@
+---
+# tasks/dns_records.yml - Manage OVH DNS records
+
+- name: Install required Python OVH API module in Certbot virtualenv
+  ansible.builtin.pip:
+    name: ovh>=0.5.0
+    state: present
+    virtualenv: "{{ certbot_venv_dir }}"
+  become: true
+
+- name: Create Python script for handling DNS records
+  ansible.builtin.template:
+    src: ovh_dns_manager.py.j2
+    dest: "{{ certbot_venv_dir }}/bin/ovh_dns_manager.py"
+    mode: '0755'
+    owner: root
+    group: root
+  become: true
+
+- name: Create OVH DNS A records
+  ansible.builtin.command:
+    cmd: >
+      {{ certbot_venv_dir }}/bin/python {{ certbot_venv_dir }}/bin/ovh_dns_manager.py
+      create-record
+      --zone {{ item.domains[0].split('.')[-2:] | join('.') }}
+      --name {{ item.domains[0].split('.')[0] }}
+      --type A
+      --value {{ hostvars[inventory_hostname]['ansible_host'] | default(ansible_default_ipv4.address) }}
+      --ttl 3600
+      --endpoint {{ certbot_ovh_endpoint }}
+      --app-key {{ certbot_ovh_application_key }}
+      --app-secret {{ certbot_ovh_application_secret }}
+      --consumer-key {{ certbot_ovh_consumer_key }}
+  register: dns_records
+  changed_when: "'Record created' in dns_records.stdout or 'Record updated' in dns_records.stdout"
+  failed_when: "dns_records.rc != 0 and 'already exists' not in dns_records.stderr|default('')"
+  loop: "{{ certbot_certs }}"
+  when: 
+    - certbot_manage_dns | bool
+    - item.dns_managed | default(true) | bool
+
+- name: Create OVH DNS CNAME records for www subdomains
+  ansible.builtin.command:
+    cmd: >
+      {{ certbot_venv_dir }}/bin/python {{ certbot_venv_dir }}/bin/ovh_dns_manager.py
+      create-record
+      --zone {{ item.domains[0].split('.')[-2:] | join('.') }}
+      --name www.{{ item.domains[0].split('.')[0] }}
+      --type CNAME
+      --value {{ item.domains[0] }}.
+      --ttl 3600
+      --endpoint {{ certbot_ovh_endpoint }}
+      --app-key {{ certbot_ovh_application_key }}
+      --app-secret {{ certbot_ovh_application_secret }}
+      --consumer-key {{ certbot_ovh_consumer_key }}
+  register: cname_records
+  changed_when: "'Record created' in cname_records.stdout"
+  failed_when: "cname_records.rc != 0 and 'already exists' not in cname_records.stderr|default('')"
+  loop: "{{ certbot_certs }}"
+  when: 
+    - certbot_manage_dns | bool
+    - item.dns_managed | default(true) | bool
+    - item.create_www | default(false) | bool
+
+- name: Refresh OVH DNS zones
+  ansible.builtin.command:
+    cmd: >
+      {{ certbot_venv_dir }}/bin/python {{ certbot_venv_dir }}/bin/ovh_dns_manager.py
+      refresh-zone
+      --zone {{ item.domains[0].split('.')[-2:] | join('.') }}
+      --endpoint {{ certbot_ovh_endpoint }}
+      --app-key {{ certbot_ovh_application_key }}
+      --app-secret {{ certbot_ovh_application_secret }}
+      --consumer-key {{ certbot_ovh_consumer_key }}
+  register: refresh_zones
+  changed_when: "'Zone refreshed' in refresh_zones.stdout"
+  loop: "{{ certbot_certs | unique | list }}"
+  when: 
+    - certbot_manage_dns | bool
+    - item.dns_managed | default(true) | bool
+    # Remove the condition on dns_records.changed or cname_records.changed
