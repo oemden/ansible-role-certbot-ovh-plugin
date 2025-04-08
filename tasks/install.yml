@@ -44,6 +44,13 @@
   become: true
   register: certbot_pip_install
 
+- name: Install certbot nginx plugin
+  ansible.builtin.pip:
+    name: certbot-nginx
+    virtualenv: /opt/certbot-venv
+    state: present
+  become: true
+
 # Create symlink for certbot command
 - name: Create symlink for certbot command
   ansible.builtin.file:

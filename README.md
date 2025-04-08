@@ -148,7 +148,7 @@ certbot_post_hooks:
           - "*.example.com"
         cert_name: example-com
         dns_managed: true  # Enable DNS management for this cert
-        create_www: true   # Create a www CNAME record
+        create_www: false  # Create a www CNAME record
       
       - domains:
           - api.example.com
