@@ -24,15 +24,14 @@
   ignore_errors: true
   check_mode: false
 
-- name: Issue certificates with OVH DNS challenge
+
+- name: Issue certificates with nginx plugin
   ansible.builtin.command: >
-    {{ certbot_exec }} certonly --non-interactive 
-    --authenticator dns-ovh 
-    --dns-ovh-credentials {{ certbot_ovh_credentials_dir }}/ovh.ini
-    --dns-ovh-propagation-seconds {{ certbot_ovh_propagation_seconds | default(60) }}
+    {{ certbot_exec }} --nginx 
+    --non-interactive 
     --agree-tos
-    --email {{ item.0.email | default(certbot_admin_email) }}
-    --domains {{ item.0.domains | join(',') }}
+    -m {{ item.0.email | default(certbot_admin_email) }}
+    -d {{ item.0.domains | join(' -d ') }}
     {{ '--cert-name ' + item.0.cert_name if item.0.cert_name is defined else '' }}
     {{ '--staging' if certbot_staging | bool else '' }}
     {{ certbot_additional_args | default('') }}
@@ -40,20 +39,51 @@
     - "{{ certbot_certs }}"
     - "{{ cert_files.results }}"
   when: >
-    (certbot_dns_provider == 'ovh' and (not item.1.stat.exists or 
+    (not item.1.stat.exists or 
     certbot_force_renew | bool or 
-    "The following certs are not due for renewal yet" not in cert_details.results[ansible_loop.index0].stdout|default('')))
+    "The following certs are not due for renewal yet" not in cert_details.results[ansible_loop.index0].stdout|default(''))
   register: certbot_issuance
   become: true
   notify: Restart services after cert renewal
 
 - name: Run certificate renewal (forced)
   ansible.builtin.command: >
-    {{ certbot_exec }} renew --force-renewal
+    {{ certbot_exec }} renew --force-renewal {{ '--nginx' if certbot_use_nginx | default(true) else '' }}
   when: certbot_force_renew | bool
   become: true
   notify: Restart services after cert renewal
   changed_when: true
+
+# - name: Issue certificates with OVH DNS challenge
+#   ansible.builtin.command: >
+#     {{ certbot_exec }} certonly --non-interactive 
+#     --authenticator dns-ovh 
+#     --dns-ovh-credentials {{ certbot_ovh_credentials_dir }}/ovh.ini
+#     --dns-ovh-propagation-seconds {{ certbot_ovh_propagation_seconds | default(60) }}
+#     --agree-tos
+#     --email {{ item.0.email | default(certbot_admin_email) }}
+#     --domains {{ item.0.domains | join(',') }}
+#     {{ '--cert-name ' + item.0.cert_name if item.0.cert_name is defined else '' }}
+#     {{ '--staging' if certbot_staging | bool else '' }}
+#     {{ certbot_additional_args | default('') }}
+#   with_together:
+#     - "{{ certbot_certs }}"
+#     - "{{ cert_files.results }}"
+#   when: >
+#     (certbot_dns_provider == 'ovh' and (not item.1.stat.exists or 
+#     certbot_force_renew | bool or 
+#     "The following certs are not due for renewal yet" not in cert_details.results[ansible_loop.index0].stdout|default('')))
+#   register: certbot_issuance
+#   become: true
+#   notify: Restart services after cert renewal
+
+# - name: Run certificate renewal (forced)
+#   ansible.builtin.command: >
+#     {{ certbot_exec }} renew --force-renewal
+#   when: certbot_force_renew | bool
+#   become: true
+#   notify: Restart services after cert renewal
+#   changed_when: true
 
 - name: Setup Certbot renewal cron job
   ansible.builtin.cron:
